@@ -5,11 +5,18 @@ import os  # For images
 # - Get the lives working correctly ✅
 # - Ball needs to disappear when going below the paddle. (Remove from list) ✅
 # - Ball needs to respawn when player presses a key and launches downwards. ✅
-# - BUG when balls empty we need to only be able to spawn a new ball
-# - Need to handle the blocks being hit and
+# - BUG when balls empty we need to only be able to spawn a new ball ✅
+# - Blocks need to be on a list so that we can handle collisions ✅
+# - Need to handle the blocks being hit ✅
+# - 🐞 Initial ball release is causing issues ✅
+# - 🐞 Movement of paddle off-screen in line with new screen size ✅
+# - Handle when lives are gone game over message to be shown ✅
+# - Handle destroying blocks
+# - Handles Level Complete
+# - Handle
 
 # << ------------------------ Main Surface or window ------------------------
-WIDTH, HEIGHT = 1280, 720  # Tuple to supply to below method
+WIDTH, HEIGHT = 820, 720  # Tuple to supply to below method
 WIN = pygame.display.set_mode((WIDTH, HEIGHT))  # Method to set up window
 pygame.display.set_caption("First Game!")  # Title
 
@@ -17,54 +24,60 @@ pygame.display.set_caption("First Game!")  # Title
 PURPLE = (75, 0, 130)
 FPS = 60  # Need to set this to stop our while loop running thousands of time per second
 BACKGROUND_IMAGE = pygame.image.load(os.path.join('Assets', 'background.png'))  # Dims 1280, 720
+GREEN = (30, 207, 192)
 
 VEL = 7  # Game Velocity
 
-# ------- > BLOCKS
-BLOCKS_IMAGE = pygame.image.load(os.path.join('Assets', 'blocks.png'))  # Dims 488, 28
-BLOCKS_IMAGE_WIDTH = 488
-BLOCKS_IMAGE_HEIGHT = 28
 # ------- >> PADDLE
 PADDLE_IMAGE = pygame.image.load(os.path.join('Assets', 'paddle.png'))  # Dims 112, 18
 PADDLE_IMAGE_WIDTH = 112
 PADDLE_IMAGE_HEIGHT = 18
+
 # ------- > BALLS
 BALL_IMAGE = pygame.image.load(os.path.join('Assets', 'ball.png'))  # Dims 12, 12
 BALL_IMAGE_WIDTH = 12
 BALL_IMAGE_HEIGHT = 12
 BALL_VEL_X, BALL_VEL_Y = 3, 3
 
+# ------- > BLOCKS
+BLOCK_IMAGE = pygame.image.load(os.path.join('Assets', 'blue_block.png'))  # Dims 246, 116
+BLOCK_IMAGE_WIDTH = 246 // 3
+BLOCK_IMAGE_HEIGHT = 58 // 3
+BLOCK_IMAGE = pygame.transform.scale(surface=BLOCK_IMAGE, size=(BLOCK_IMAGE_WIDTH, BLOCK_IMAGE_HEIGHT))
+
 # --------------------------- EVENTS --------------------------- >>
 LIFE_LOST = pygame.USEREVENT + 1
 
 # --------------------- SCOREBOARD ---------------------
 pygame.font.init()
-font = pygame.font.Font(None, 36)  # You can adjust the font size as needed
+font_health = pygame.font.Font(None, 36)  # You can adjust the font size as needed
+font_game_over = pygame.font.Font(None, 36)  # You can adjust the font size as needed
 
 
-def draw_window(paddle_box, blocks_box, balls, lives):  # Pass in the rectangles as parameters
+def draw_window(paddle_box, blocks, balls, lives):  # Pass in the rectangles as parameters
     """Takes the paddle and blocks as parameters and draws the window using the x and y coordinates attached to these
     parameters"""
     WIN.fill(color=PURPLE)  # Sets background colour
     WIN.blit(BACKGROUND_IMAGE, (0, 0))  # Blit used to get images onto the screen
     WIN.blit(PADDLE_IMAGE, (paddle_box.x, paddle_box.y))  # Place using dims
-    WIN.blit(BLOCKS_IMAGE, (blocks_box.x, blocks_box.y))
+    for block in blocks:
+        WIN.blit(BLOCK_IMAGE, (block.x, block.y))
     for ball in balls:
         WIN.blit(BALL_IMAGE, (ball.x, ball.y))
     # Render lives text
-    lives_text = font.render(f'Lives: {lives}', True, (255, 255, 255))
-    WIN.blit(lives_text, (10, 10))  # Adjust the position as needed
+    lives_text = font_health.render(f'Lives: {lives}', True, (255, 255, 255))
+    WIN.blit(lives_text, (10, 10))
     pygame.display.update()  # Updates screen to show what we drew as our background colour
 
 
 def handles_paddle_movement(paddle_box, keys):
     if keys[pygame.K_LEFT] and paddle_box.x >= 2:  # Second part of this define our boundary for movement
         paddle_box.x -= VEL  # Move paddle left
-    if keys[pygame.K_RIGHT] and paddle_box.x <= 1280 - PADDLE_IMAGE_WIDTH:  # Boundary for movement
+    if keys[pygame.K_RIGHT] and paddle_box.x <= WIDTH - PADDLE_IMAGE_WIDTH:  # Boundary for movement
         paddle_box.x += VEL  # Move paddle right
 
 
-def handles_ball_movement(balls, paddle_box):
+def handles_ball_movement(balls, paddle_box, blocks, lives):
     global BALL_VEL_X, BALL_VEL_Y  # Declare BALL_VEL as a global variable
     for ball in balls:
         ball.x += BALL_VEL_X  # Move ball right
@@ -79,40 +92,84 @@ def handles_ball_movement(balls, paddle_box):
         # ----------- PART 2: Collision with paddle
         if ball.colliderect(paddle_box):
             BALL_VEL_Y *= -1
-            if ball.bottom < paddle_box.top:
-                paddle_box.top = paddle_box.top + 1
+            ball.bottom = paddle_box.top - BALL_IMAGE_HEIGHT
         # ----------- PART 3: Missed paddle and life lost
         if ball.top >= HEIGHT:
             # print("LIFE NEEDS TO BE LOST NOW")
             balls.remove(ball)
             pygame.event.post(pygame.event.Event(LIFE_LOST))
+        # ----------- PART 4: Handles ball and block collision
+        block_collision(ball=ball, blocks=blocks)
+
+
+def block_collision(ball, blocks):
+    global BALL_VEL_Y
+    for block in blocks:  # Loop through each block and check if the ball has collided with it
+        if ball.colliderect(block):  # If there is a collision
+            BALL_VEL_Y *= -1
+            print(f"Ball top pos is: {ball.top}")
+            print(f"Block bottom pos is: {block.bottom}")
+            ball.top = block.bottom + BALL_IMAGE_HEIGHT
+
+            print(f"Ball hit a block!")
 
 
 def new_balls_please():
-    new_ball = pygame.Rect(396, 50, BALL_IMAGE_WIDTH, BALL_IMAGE_HEIGHT)
+    new_ball = pygame.Rect(WIDTH // 2, 70, BALL_IMAGE_WIDTH, BALL_IMAGE_HEIGHT)
     return new_ball
+
+
+def create_one_line_of_blocks():
+    blocks = []
+    for i in range(10):
+        block = pygame.Rect(i * BLOCK_IMAGE_WIDTH, 50, BLOCK_IMAGE_WIDTH, BLOCK_IMAGE_HEIGHT)
+        blocks.append(block)
+    return blocks
+
+
+def draw_game_over_text(level_reached):
+    game_over_text = font_health.render(f'GAME OVER you reached level: {level_reached}', True, GREEN)
+    WIN.blit(game_over_text,
+             (WIDTH // 2 - game_over_text.get_width() // 2, HEIGHT // 3 - game_over_text.get_height() // 2))
+    next_game_starts = font_health.render(f'Next game starts in 5 seconds!', True, GREEN)
+    WIN.blit(next_game_starts,
+             (WIDTH // 2 - game_over_text.get_width() // 2, HEIGHT // 2 - game_over_text.get_height() // 2))
+    pygame.display.update()
+    pygame.time.delay(5000)
 
 
 # # << ------------------------   MAIN GAME LOOP  ------------------------
 def main():
     paddle_box = pygame.Rect(584, 700, PADDLE_IMAGE_WIDTH, PADDLE_IMAGE_HEIGHT)
-    blocks_box = pygame.Rect(396, 50, BLOCKS_IMAGE_WIDTH, BLOCKS_IMAGE_HEIGHT)
-    lives = 3
+
+    blocks = create_one_line_of_blocks()  # Create one nice long line of blocks!
+    level = 1
+    lives = 1
+    game_over = False
+
     balls = []
-    ball_box = pygame.Rect(396, 50, BALL_IMAGE_WIDTH, BALL_IMAGE_HEIGHT)
-    balls.append(ball_box)
+    new_ball = new_balls_please()
+    balls.append(new_ball)
 
     clock = pygame.time.Clock()  # Need to set this to stop our while loop running thousands of time per second
     run = True  # To keep while loop running
-    while run:
+    game_over = False
+    while run and not game_over:
         clock.tick(FPS)
         for event in pygame.event.get():
             if event.type == pygame.QUIT:  # User closes game
                 run = False  # Ends while loop and ends game
+                pygame.quit()
             if event.type == LIFE_LOST:
                 lives -= 1
                 print(f"Lives = {lives}")
-            if event.type == pygame.KEYDOWN:
+            if lives == 0:
+                print(f"GAME_OVER = {game_over}")
+                draw_game_over_text(level_reached=level)  # Prints the game over text and paused for 10 seconds
+                game_over = True
+                break  # Then breaks out of checking for events, and we restart the while run loop
+            if event.type == pygame.KEYDOWN:  # This handles the space bar being pressed
+                # Had to add the below to stop being able to generate new balls at any point in time
                 if event.key == pygame.K_SPACE and not balls:
                     print("Respawn Ball")
                     new_ball = new_balls_please()
@@ -122,10 +179,12 @@ def main():
         # Function for paddle movement
         handles_paddle_movement(paddle_box=paddle_box, keys=keys)
         # Function for ball movement
-        handles_ball_movement(balls=balls, paddle_box=paddle_box)
+        handles_ball_movement(balls=balls, paddle_box=paddle_box, blocks=blocks, lives=lives)
 
         # Updates the window with the movement above and any event related changes
-        draw_window(paddle_box=paddle_box, blocks_box=blocks_box, balls=balls, lives=lives)
+        draw_window(paddle_box=paddle_box, blocks=blocks, balls=balls, lives=lives)
+
+    main()  # This is a recursive call to trigger the main to run again when lives are all gone
 
 
 if __name__ == "__main__":
