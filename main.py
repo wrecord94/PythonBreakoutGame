@@ -11,9 +11,14 @@ import os  # For images
 # - 🐞 Initial ball release is causing issues ✅
 # - 🐞 Movement of paddle off-screen in line with new screen size ✅
 # - Handle when lives are gone game over message to be shown ✅
-# - Handle destroying blocks
-# - Handles Level Complete
-# - Handle
+# - Handle destroying blocks ✅
+# - Create border at top similar to edges ✅
+# - Handles Level Complete ✅
+# - Display the current level on the screen  ✅
+# - Scoring as blocks destroyed
+# - Multiple lines of blocks
+# - Speed increases each level
+# - Make OOP
 
 # << ------------------------ Main Surface or window ------------------------
 WIDTH, HEIGHT = 820, 720  # Tuple to supply to below method
@@ -37,7 +42,7 @@ PADDLE_IMAGE_HEIGHT = 18
 BALL_IMAGE = pygame.image.load(os.path.join('Assets', 'ball.png'))  # Dims 12, 12
 BALL_IMAGE_WIDTH = 12
 BALL_IMAGE_HEIGHT = 12
-BALL_VEL_X, BALL_VEL_Y = 3, 3
+BALL_VEL_X, BALL_VEL_Y = 7, 7
 
 # ------- > BLOCKS
 BLOCK_IMAGE = pygame.image.load(os.path.join('Assets', 'blue_block.png'))  # Dims 246, 116
@@ -45,8 +50,12 @@ BLOCK_IMAGE_WIDTH = 246 // 3
 BLOCK_IMAGE_HEIGHT = 58 // 3
 BLOCK_IMAGE = pygame.transform.scale(surface=BLOCK_IMAGE, size=(BLOCK_IMAGE_WIDTH, BLOCK_IMAGE_HEIGHT))
 
+# ------- > TOP BORDER
+BORDER_TOP = pygame.Rect(0, 0, WIDTH, 5)
+
 # --------------------------- EVENTS --------------------------- >>
 LIFE_LOST = pygame.USEREVENT + 1
+LEVEL_COMPLETE = pygame.USEREVENT + 2
 
 # --------------------- SCOREBOARD ---------------------
 pygame.font.init()
@@ -54,7 +63,7 @@ font_health = pygame.font.Font(None, 36)  # You can adjust the font size as need
 font_game_over = pygame.font.Font(None, 36)  # You can adjust the font size as needed
 
 
-def draw_window(paddle_box, blocks, balls, lives):  # Pass in the rectangles as parameters
+def draw_window(paddle_box, blocks, balls, lives, level, score):  # Pass in the rectangles as parameters
     """Takes the paddle and blocks as parameters and draws the window using the x and y coordinates attached to these
     parameters"""
     WIN.fill(color=PURPLE)  # Sets background colour
@@ -64,9 +73,20 @@ def draw_window(paddle_box, blocks, balls, lives):  # Pass in the rectangles as 
         WIN.blit(BLOCK_IMAGE, (block.x, block.y))
     for ball in balls:
         WIN.blit(BALL_IMAGE, (ball.x, ball.y))
+    pygame.draw.rect(surface=WIN, color=GREEN, rect=BORDER_TOP)  # Draw top border
+
     # Render lives text
     lives_text = font_health.render(f'Lives: {lives}', True, (255, 255, 255))
     WIN.blit(lives_text, (10, 10))
+
+    # Render Level text
+    level_text = font_health.render(f'Level: {level}', True, (255, 255, 255))
+    WIN.blit(level_text, (WIDTH - 100, 10))
+
+    # Render Level text
+    score_text = font_health.render(f'Score: {score}', True, (255, 255, 255))
+    WIN.blit(score_text, (WIDTH//2-score_text.get_width()//2, 10))
+
     pygame.display.update()  # Updates screen to show what we drew as our background colour
 
 
@@ -89,6 +109,9 @@ def handles_ball_movement(balls, paddle_box, blocks, lives):
         elif ball.left <= 0:
             ball.left = 1
             BALL_VEL_X *= -1
+        elif ball.top <= 5:  # Handles hitting top of the screen
+            ball.top = 6
+            BALL_VEL_Y *= -1
         # ----------- PART 2: Collision with paddle
         if ball.colliderect(paddle_box):
             BALL_VEL_Y *= -1
@@ -103,15 +126,20 @@ def handles_ball_movement(balls, paddle_box, blocks, lives):
 
 
 def block_collision(ball, blocks):
-    global BALL_VEL_Y
+    global BALL_VEL_Y, score
     for block in blocks:  # Loop through each block and check if the ball has collided with it
         if ball.colliderect(block):  # If there is a collision
             BALL_VEL_Y *= -1
+            score += 5
             print(f"Ball top pos is: {ball.top}")
             print(f"Block bottom pos is: {block.bottom}")
             ball.top = block.bottom + BALL_IMAGE_HEIGHT
+            blocks.remove(block)  # Remove block from block list
 
             print(f"Ball hit a block!")
+            if not blocks:
+                print("No blocks left therefore level completed")
+                pygame.event.post(pygame.event.Event(LEVEL_COMPLETE))
 
 
 def new_balls_please():
@@ -121,7 +149,7 @@ def new_balls_please():
 
 def create_one_line_of_blocks():
     blocks = []
-    for i in range(10):
+    for i in range(1, 9):
         block = pygame.Rect(i * BLOCK_IMAGE_WIDTH, 50, BLOCK_IMAGE_WIDTH, BLOCK_IMAGE_HEIGHT)
         blocks.append(block)
     return blocks
@@ -138,14 +166,22 @@ def draw_game_over_text(level_reached):
     pygame.time.delay(5000)
 
 
+def level_completed(level):
+    pygame.time.delay(3000)  # When level complete pause for 3 seconds
+    blocks = create_one_line_of_blocks()  # Then create a new line of blocks
+    return blocks
+
+
 # # << ------------------------   MAIN GAME LOOP  ------------------------
 def main():
+    global score
     paddle_box = pygame.Rect(584, 700, PADDLE_IMAGE_WIDTH, PADDLE_IMAGE_HEIGHT)
 
     blocks = create_one_line_of_blocks()  # Create one nice long line of blocks!
     level = 1
-    lives = 1
+    lives = 3
     game_over = False
+    score = 0
 
     balls = []
     new_ball = new_balls_please()
@@ -168,6 +204,10 @@ def main():
                 draw_game_over_text(level_reached=level)  # Prints the game over text and paused for 10 seconds
                 game_over = True
                 break  # Then breaks out of checking for events, and we restart the while run loop
+            if event.type == LEVEL_COMPLETE:
+                level += 1
+                print(f"Now on Level: {level}")
+                blocks = level_completed(level)
             if event.type == pygame.KEYDOWN:  # This handles the space bar being pressed
                 # Had to add the below to stop being able to generate new balls at any point in time
                 if event.key == pygame.K_SPACE and not balls:
@@ -182,7 +222,7 @@ def main():
         handles_ball_movement(balls=balls, paddle_box=paddle_box, blocks=blocks, lives=lives)
 
         # Updates the window with the movement above and any event related changes
-        draw_window(paddle_box=paddle_box, blocks=blocks, balls=balls, lives=lives)
+        draw_window(paddle_box=paddle_box, blocks=blocks, balls=balls, lives=lives, level=level, score=score)
 
     main()  # This is a recursive call to trigger the main to run again when lives are all gone
 
