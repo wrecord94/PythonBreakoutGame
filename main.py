@@ -1,5 +1,6 @@
 import pygame
 import os  # For images
+import random
 
 # TO DO:
 # - Get the lives working correctly ✅
@@ -15,13 +16,20 @@ import os  # For images
 # - Create border at top similar to edges ✅
 # - Handles Level Complete ✅
 # - Display the current level on the screen  ✅
-# - Scoring as blocks destroyed
-# - Multiple lines of blocks
-# - Speed increases each level
+# - Scoring as blocks destroyed ✅
+# - Multiple lines of blocks ✅
+# - Speed increases each level ✅
+# - 🐞 Fix the collisions with blocks to be more accurate ✅
+# - 🐞 Place the ball's respawn point at a good random location ✅
+# - 🐞 Make the blocks bigger to help collisions ✅
+# - End of game
+# - Future enhancements:
 # - Make OOP
+# - Make Different block colours on each level
+# - Additional features like guns, boosts, and additional balls.
 
 # << ------------------------ Main Surface or window ------------------------
-WIDTH, HEIGHT = 820, 720  # Tuple to supply to below method
+WIDTH, HEIGHT = 784, 720  # Tuple to supply to below method
 WIN = pygame.display.set_mode((WIDTH, HEIGHT))  # Method to set up window
 pygame.display.set_caption("First Game!")  # Title
 
@@ -31,7 +39,7 @@ FPS = 60  # Need to set this to stop our while loop running thousands of time pe
 BACKGROUND_IMAGE = pygame.image.load(os.path.join('Assets', 'background.png'))  # Dims 1280, 720
 GREEN = (30, 207, 192)
 
-VEL = 7  # Game Velocity
+VEL = 10  # Game Velocity
 
 # ------- >> PADDLE
 PADDLE_IMAGE = pygame.image.load(os.path.join('Assets', 'paddle.png'))  # Dims 112, 18
@@ -42,12 +50,12 @@ PADDLE_IMAGE_HEIGHT = 18
 BALL_IMAGE = pygame.image.load(os.path.join('Assets', 'ball.png'))  # Dims 12, 12
 BALL_IMAGE_WIDTH = 12
 BALL_IMAGE_HEIGHT = 12
-BALL_VEL_X, BALL_VEL_Y = 7, 7
+BALL_VEL_X, BALL_VEL_Y = 5, 5
 
 # ------- > BLOCKS
 BLOCK_IMAGE = pygame.image.load(os.path.join('Assets', 'blue_block.png'))  # Dims 246, 116
-BLOCK_IMAGE_WIDTH = 246 // 3
-BLOCK_IMAGE_HEIGHT = 58 // 3
+BLOCK_IMAGE_WIDTH = 246 // 2.5
+BLOCK_IMAGE_HEIGHT = 58 // 2.5
 BLOCK_IMAGE = pygame.transform.scale(surface=BLOCK_IMAGE, size=(BLOCK_IMAGE_WIDTH, BLOCK_IMAGE_HEIGHT))
 
 # ------- > TOP BORDER
@@ -85,7 +93,7 @@ def draw_window(paddle_box, blocks, balls, lives, level, score):  # Pass in the 
 
     # Render Level text
     score_text = font_health.render(f'Score: {score}', True, (255, 255, 255))
-    WIN.blit(score_text, (WIDTH//2-score_text.get_width()//2, 10))
+    WIN.blit(score_text, (WIDTH // 2 - score_text.get_width() // 2, 10))
 
     pygame.display.update()  # Updates screen to show what we drew as our background colour
 
@@ -126,14 +134,35 @@ def handles_ball_movement(balls, paddle_box, blocks, lives):
 
 
 def block_collision(ball, blocks):
-    global BALL_VEL_Y, score
+    global BALL_VEL_Y, score, BALL_VEL_X
     for block in blocks:  # Loop through each block and check if the ball has collided with it
         if ball.colliderect(block):  # If there is a collision
-            BALL_VEL_Y *= -1
             score += 5
-            print(f"Ball top pos is: {ball.top}")
-            print(f"Block bottom pos is: {block.bottom}")
-            ball.top = block.bottom + BALL_IMAGE_HEIGHT
+            print(f"Ball pos before adjustment: ({ball.x}, {ball.y})")
+            print(f"Block pos before adjustment: ({block.x}, {block.y}")
+
+            # Determine side of collision
+            if ball.top <= block.bottom and ball.bottom >= block.bottom:
+                print("Collision from the top")
+                BALL_VEL_Y *= -1
+                ball.top = block.bottom + 1
+            elif ball.bottom >= block.top and ball.top <= block.top:
+                print("Collision from the bottom")
+                BALL_VEL_Y *= -1
+                ball.bottom = block.top - 1
+            elif ball.left <= block.right and ball.right >= block.right:
+                print("Collision from the left")
+                BALL_VEL_X *= -1
+                ball.left = block.right + 1
+            elif ball.right >= block.left and ball.left <= block.left:
+                print("Collision from the right")
+                BALL_VEL_X *= -1
+                ball.right = block.left - 1
+
+
+            print(f"Ball pos after adjustment: ({ball.x}, {ball.y})")
+            print(f"Block pos after adjustment: ({block.x}, {block.y}")
+
             blocks.remove(block)  # Remove block from block list
 
             print(f"Ball hit a block!")
@@ -143,15 +172,18 @@ def block_collision(ball, blocks):
 
 
 def new_balls_please():
-    new_ball = pygame.Rect(WIDTH // 2, 70, BALL_IMAGE_WIDTH, BALL_IMAGE_HEIGHT)
+    new_ball = pygame.Rect((random.randint(0, WIDTH)), 300, BALL_IMAGE_WIDTH, BALL_IMAGE_HEIGHT)
     return new_ball
 
 
-def create_one_line_of_blocks():
+def create_our_lines_of_blocks(level):
     blocks = []
-    for i in range(1, 9):
-        block = pygame.Rect(i * BLOCK_IMAGE_WIDTH, 50, BLOCK_IMAGE_WIDTH, BLOCK_IMAGE_HEIGHT)
-        blocks.append(block)
+    for line_of_blocks in range(1, level + 5):
+        for i in range(1, 7):
+            block = pygame.Rect(i * BLOCK_IMAGE_WIDTH, 50 + (line_of_blocks - 1) * BLOCK_IMAGE_HEIGHT,
+                                BLOCK_IMAGE_WIDTH, BLOCK_IMAGE_HEIGHT)
+            blocks.append(block)
+
     return blocks
 
 
@@ -168,17 +200,18 @@ def draw_game_over_text(level_reached):
 
 def level_completed(level):
     pygame.time.delay(3000)  # When level complete pause for 3 seconds
-    blocks = create_one_line_of_blocks()  # Then create a new line of blocks
+    blocks = create_our_lines_of_blocks(level)  # Then create new lines of blocks
+
     return blocks
 
 
 # # << ------------------------   MAIN GAME LOOP  ------------------------
 def main():
-    global score
+    global score, BALL_VEL_X, BALL_VEL_Y
     paddle_box = pygame.Rect(584, 700, PADDLE_IMAGE_WIDTH, PADDLE_IMAGE_HEIGHT)
-
-    blocks = create_one_line_of_blocks()  # Create one nice long line of blocks!
     level = 1
+    blocks = create_our_lines_of_blocks(level)  # Create one nice long line of blocks!
+
     lives = 3
     game_over = False
     score = 0
@@ -206,6 +239,9 @@ def main():
                 break  # Then breaks out of checking for events, and we restart the while run loop
             if event.type == LEVEL_COMPLETE:
                 level += 1
+                BALL_VEL_X = abs(BALL_VEL_X) + 0.5
+                BALL_VEL_Y = abs(BALL_VEL_Y) + 0.5
+                print(f"Ball Velocity is now: {BALL_VEL_X, BALL_VEL_Y}")
                 print(f"Now on Level: {level}")
                 blocks = level_completed(level)
             if event.type == pygame.KEYDOWN:  # This handles the space bar being pressed
